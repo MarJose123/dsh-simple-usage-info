@@ -193,6 +193,11 @@ The repository publishes to npm from GitHub Actions
 ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): tests run on every push and pull request,
 and a **GitHub Release** — or the *Run workflow* button — publishes to the registry.
 
+Authentication uses **[npm trusted publishing](https://docs.npmjs.com/trusted-publishers)**, so
+there is **no `NPM_TOKEN` secret and no long-lived credential to rotate**. The publish job holds
+`id-token: write`, GitHub mints an OIDC token, and npm exchanges it for a credential valid for that
+one publish. Provenance comes from the same token.
+
 The two jobs install differently on purpose:
 
 - **`test`** installs with **bun** (`bun install --frozen-lockfile`) and runs the preflight suite.
@@ -200,23 +205,39 @@ The two jobs install differently on purpose:
   no build step, so `npm publish` just packs `lib/` and `cordis.patch.yml`. It is gated on `test`
   via `needs:`, so nothing reaches the registry untested.
 
-One-time setup:
+### One-time setup
 
-1. Create an npm **automation** access token and add it as the `NPM_TOKEN` repository secret.
-2. Make sure the release tag matches `package.json` (`v0.1.0` for version `0.1.0`); the workflow
-   checks this and fails early if they disagree.
+1. **Publish the first version by hand.** npm attaches a trusted publisher to a package that already
+   exists, so the initial version goes out by another route:
 
-The publish job passes `--provenance`, which requires a **public** repository and the
-`id-token: write` permission the workflow already sets. It also runs `npm pack --dry-run` first, so
-the run log lists exactly what will be uploaded.
+   ```sh
+   bun install && bun run preflight
+   npm login
+   npm publish --access public
+   ```
 
-To publish by hand, run the tests first — the workflow gates the release, but a local
-`npm publish` does not:
+2. **Add the trusted publisher** on npmjs.com: *Package → Settings → Trusted publisher → GitHub
+   Actions*, with
 
-```sh
-bun install && bun run preflight
-npm publish --access public
-```
+   | Field | Value |
+   |---|---|
+   | Organization or user | `MarJose123` |
+   | Repository | `dsh-simple-usage-info` |
+   | Workflow filename | `ci.yml` |
+   | Environment | *(leave blank)* |
+   | Allowed actions | `npm publish` |
+
+3. **Revoke any token** you used for step 1. It is not needed again.
+
+After that, cutting a GitHub Release publishes. The release tag must match `package.json`
+(`v0.1.0` for version `0.1.0`) — the workflow checks this and fails early if they disagree, and runs
+`npm pack --dry-run` first so the log lists exactly what will be uploaded.
+
+Two things the workflow handles for you, both of which are easy to get wrong:
+
+- **npm ≥ 11.5.1 is required**, and Node 22 ships npm 10.x, so the job upgrades npm before
+  publishing.
+- Provenance requires a **public** repository; `--provenance` would fail on a private one.
 
 ## License
 
