@@ -1,0 +1,64 @@
+# Tests on every push and pull request; publishes to npm on a GitHub Release
+# (or from the Actions tab). See the README's "Publishing" section for the
+# NPM_TOKEN secret and the provenance requirements.
+#
+# The test job installs with bun (the repo's dev package manager, via the
+# committed bun.lock). The publish job is deliberately npm-only and installs
+# nothing: the published files are committed sources, so `npm publish` just packs
+# them, and the test job has already gated the release.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+      - name: Preflight
+        run: bun run preflight
+
+  publish:
+    needs: test
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm provenance attestation.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Check the release tag matches package.json
+        if: github.event_name == 'release'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::release tag '$tag' does not match package.json version '$version'"
+            exit 1
+          fi
+          echo "publishing $version"
+      - name: Inspect the tarball
+        run: npm pack --dry-run
+      - name: Publish
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

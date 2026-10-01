@@ -1,0 +1,35 @@
+# This package's own bundle patch: one self-insert row. A profile that lists
+# `dsh-simple-usage-info` in `dsh.profile.bundles` applies this file, and the
+# row loads the package's host half while `dsh.client` publishes the browser
+# half into the web boot graph.
+- insert:
+    - id: usage-info
+      name: dsh-simple-usage-info
+      config:
+        # How long one upstream balance answer stays fresh.
+        refreshMs: 60000
+        # Upstream request timeout.
+        timeoutMs: 15000
+        # Peak-rate windows, `HH:MM-HH:MM` UTC. Everything else is off-peak.
+        # Quoted so no YAML parser reads a clock as a sexagesimal number.
+        peakWindows:
+          - '01:00-04:00'
+          - '06:00-10:00'
+        # Peak weekdays: 0 = Sunday ... 6 = Saturday.
+        peakDays: [1, 2, 3, 4, 5]
+        # `YYYY-MM-DD` UTC dates priced off-peak in full, added on top of the
+        # fetched holidays (for a private calendar or an unpublished year).
+        holidays: []
+        # Where the maintained Chinese holiday data is read from; `{year}` is
+        # substituted. NateScarlet/holiday-cn scrapes the State Council notices
+        # daily, so the date list needs no hand maintenance. Set '' to stay
+        # offline and fall back to the bundled table.
+        holidayURL: https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{year}.json
+        # How long one fetched snapshot stays fresh (12 hours).
+        holidayRefreshMs: 43200000
+        # Keep the bundled State Council table as an offline fallback.
+        useBundledHolidays: true
+        # 调休 makeup workdays. The published rule says "Monday through Friday",
+        # which makes them off-peak, so this stays false unless you learn
+        # otherwise from your own billing.
+        makeupWorkdaysArePeak: false

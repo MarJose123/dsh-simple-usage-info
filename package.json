@@ -1,0 +1,88 @@
+{
+  "name": "dsh-simple-usage-info",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin: your DeepSeek API balance and the current peak/off-peak billing window, below the message input.",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "deepseek",
+    "plugin",
+    "cordis",
+    "balance",
+    "usage",
+    "pricing",
+    "peak",
+    "off-peak",
+    "dsh-plugin"
+  ],
+  "license": "MIT",
+  "author": "Marjose Darang",
+  "homepage": "https://github.com/MarJose123/dsh-simple-usage-info#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MarJose123/dsh-simple-usage-info.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MarJose123/dsh-simple-usage-info/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/client.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "preflight": "node test/preflight-host.mjs && node test/preflight-pricing.mjs && node test/preflight-holidays.mjs && node test/preflight-client.mjs",
+    "preflight:host": "node test/preflight-host.mjs",
+    "preflight:pricing": "node test/preflight-pricing.mjs",
+    "preflight:holidays": "node test/preflight-holidays.mjs",
+    "preflight:client": "node test/preflight-client.mjs",
+    "preflight:live": "node test/preflight-live.mjs",
+    "preview:panel": "node test/preview-panel.mjs",
+    "verify:compose": "sh test/make-probe-home.sh && DSH_HOME=$PWD/tmp/probe-home dsh --profile web --dump-config | grep -A4 usage-info"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-credentials": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-launch-environment": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "~3.18.4"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh-credentials": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-launch-environment": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "~3.18.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
