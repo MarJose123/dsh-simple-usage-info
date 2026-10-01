@@ -53,6 +53,32 @@ jobs:
         run: |
           npm install -g npm@latest
           npm --version
+      # A trusted publisher attaches to an existing package page — npm's own
+      # setup path is "Packages -> YOUR_PACKAGE -> Settings -> Trusted
+      # publishing" — so npm cannot create a brand-new package from an OIDC
+      # token and answers E404 on the PUT. Fail here with the remedy instead.
+      # (A *mismatched* trusted publisher gives ENEEDAUTH, not 404, so the two
+      # failure modes are distinguishable.)
+      - name: Check the package exists on the registry
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          if npm view "$name" version >/dev/null 2>&1; then
+            echo "$name is on the registry"
+          else
+            echo "::error::$name has never been published, and trusted publishing cannot create a new package. Publish the first version manually (npm login && npm publish --access public), then add the trusted publisher on the package page. See the README's Publishing section."
+            exit 1
+          fi
+      # npm validates that repository.url matches the repository the workflow
+      # runs in, and the mismatch surfaces as a confusing publish failure.
+      - name: Check repository.url matches this repository
+        run: |
+          declared="$(node -p "require('./package.json').repository.url" | sed -e 's|^git+||' -e 's|\.git$||')"
+          actual="https://github.com/${GITHUB_REPOSITORY}"
+          if [ "$declared" != "$actual" ]; then
+            echo "::error::package.json repository.url is '$declared' but this workflow runs in '$actual'"
+            exit 1
+          fi
+          echo "repository.url matches $actual"
       - name: Check the release tag matches package.json
         if: github.event_name == 'release'
         run: |

@@ -207,37 +207,72 @@ The two jobs install differently on purpose:
 
 ### One-time setup
 
-1. **Publish the first version by hand.** npm attaches a trusted publisher to a package that already
-   exists, so the initial version goes out by another route:
+**Step 1 — publish the first version by hand.** This is not optional. A trusted publisher is
+configured on a package page, and npm's own setup path is *Packages → YOUR_PACKAGE → Settings →
+Trusted publishing* — which does not exist until the package does. An OIDC token **cannot create a
+new package**, so publishing before this step fails with `E404` on the `PUT`.
 
-   ```sh
-   bun install && bun run preflight
-   npm login
-   npm publish --access public
-   ```
+```sh
+bun install && bun run preflight
+npm login          # as your npm account
+npm whoami
+npm publish --access public
+```
 
-2. **Add the trusted publisher** on npmjs.com: *Package → Settings → Trusted publisher → GitHub
-   Actions*, with
+That publishes `0.1.0` and creates the package page.
 
-   | Field | Value |
-   |---|---|
-   | Organization or user | `MarJose123` |
-   | Repository | `dsh-simple-usage-info` |
-   | Workflow filename | `ci.yml` |
-   | Environment | *(leave blank)* |
-   | Allowed actions | `npm publish` |
+**Step 2 — add the trusted publisher** on npmjs.com at
+`https://www.npmjs.com/package/dsh-simple-usage-info/access`:
 
-3. **Revoke any token** you used for step 1. It is not needed again.
+| Field | Value |
+|---|---|
+| Publisher | GitHub Actions |
+| Organization or user | `MarJose123` — the **GitHub** owner, *not* the npm username |
+| Repository | `dsh-simple-usage-info` |
+| Workflow filename | `ci.yml` — the filename only, with the extension, not the full path |
+| Environment name | *(leave blank — the job declares no environment)* |
+| Allowed actions | **tick "Allow npm publish"** |
 
-After that, cutting a GitHub Release publishes. The release tag must match `package.json`
-(`v0.1.0` for version `0.1.0`) — the workflow checks this and fails early if they disagree, and runs
-`npm pack --dry-run` first so the log lists exactly what will be uploaded.
+That last row is the trap: `npm stage publish` is always permitted, but direct `npm publish` is a
+separate opt-in and is **off by default**. Without it the publish is rejected even though the
+workflow is otherwise correct.
 
-Two things the workflow handles for you, both of which are easy to get wrong:
+**Step 3 — release via CI.** Bump the version, then cut a GitHub Release:
+
+```sh
+npm version 0.1.1 --no-git-tag-version
+git commit -am "Release 0.1.1" && git push
+gh release create v0.1.1 --generate-notes
+```
+
+The publish job runs, and from here on every release goes through OIDC. Revoke the bootstrap token
+if you created one — nothing needs it any more.
+
+> If you would rather `0.1.0` be the CI-published version, bootstrap a throwaway `0.0.1` instead,
+> then set the version back to `0.1.0` and release that. The bootstrap version is scaffolding, so it
+> never carries provenance.
+
+### Reading a failed publish
+
+The two failure modes look similar but have different causes, and npm's error code tells them apart:
+
+| Error | Meaning |
+|---|---|
+| `E404` on `PUT` | The package does not exist yet — do the bootstrap above |
+| `ENEEDAUTH` | The package exists but the trusted publisher does not match: check the GitHub owner, repository, and workflow filename are **exact and case-sensitive**, and that the job has `id-token: write` |
+
+The workflow checks for the first case before publishing and fails with the remedy instead of a bare
+404.
+
+### What the workflow handles for you
 
 - **npm ≥ 11.5.1 is required**, and Node 22 ships npm 10.x, so the job upgrades npm before
-  publishing.
-- Provenance requires a **public** repository; `--provenance` would fail on a private one.
+  publishing. (Node ≥ 22.14 is the other floor.)
+- It verifies `repository.url` in `package.json` matches the repository it runs in, because npm
+  validates that too.
+- It verifies the release tag matches `package.json`, and runs `npm pack --dry-run` so the log lists
+  exactly what will be uploaded.
+- Provenance is generated automatically from the OIDC token, and requires a **public** repository.
 
 ## License
 
