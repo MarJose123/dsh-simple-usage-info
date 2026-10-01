@@ -187,7 +187,7 @@ bun run preview:panel      # prints the popover markup and stylesheet, no browse
 There is no build step: `lib/index.js` is plain ESM, and `lib/client.js` is hand-authored in the web
 client's module-loader bundle format. Neither half needs a bundler.
 
-# Preparation for release 
+### Preparation for release 
 
 **release via CI.** Bump the version, then cut a GitHub Release:
 
