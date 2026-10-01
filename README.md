@@ -264,16 +264,6 @@ The two failure modes look similar but have different causes, and npm's error co
 The workflow checks for the first case before publishing and fails with the remedy instead of a bare
 404.
 
-### What the workflow handles for you
-
-- **npm ≥ 11.5.1 is required**, and Node 22 ships npm 10.x, so the job upgrades npm before
-  publishing. (Node ≥ 22.14 is the other floor.)
-- It verifies `repository.url` in `package.json` matches the repository it runs in, because npm
-  validates that too.
-- It verifies the release tag matches `package.json`, and runs `npm pack --dry-run` so the log lists
-  exactly what will be uploaded.
-- Provenance is generated automatically from the OIDC token, and requires a **public** repository.
-
 ## License
 
 [MIT](LICENSE)
