@@ -187,57 +187,9 @@ bun run preview:panel      # prints the popover markup and stylesheet, no browse
 There is no build step: `lib/index.js` is plain ESM, and `lib/client.js` is hand-authored in the web
 client's module-loader bundle format. Neither half needs a bundler.
 
-## Publishing
+# Preparation for release 
 
-The repository publishes to npm from GitHub Actions
-([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): tests run on every push and pull request,
-and a **GitHub Release** — or the *Run workflow* button — publishes to the registry.
-
-Authentication uses **[npm trusted publishing](https://docs.npmjs.com/trusted-publishers)**, so
-there is **no `NPM_TOKEN` secret and no long-lived credential to rotate**. The publish job holds
-`id-token: write`, GitHub mints an OIDC token, and npm exchanges it for a credential valid for that
-one publish. Provenance comes from the same token.
-
-The two jobs install differently on purpose:
-
-- **`test`** installs with **bun** (`bun install --frozen-lockfile`) and runs the preflight suite.
-- **`publish`** is **npm-only and installs nothing**. The published files are committed sources with
-  no build step, so `npm publish` just packs `lib/` and `cordis.patch.yml`. It is gated on `test`
-  via `needs:`, so nothing reaches the registry untested.
-
-### One-time setup
-
-**Step 1 — publish the first version by hand.** This is not optional. A trusted publisher is
-configured on a package page, and npm's own setup path is *Packages → YOUR_PACKAGE → Settings →
-Trusted publishing* — which does not exist until the package does. An OIDC token **cannot create a
-new package**, so publishing before this step fails with `E404` on the `PUT`.
-
-```sh
-bun install && bun run preflight
-npm login          # as your npm account
-npm whoami
-npm publish --access public
-```
-
-That publishes `0.1.0` and creates the package page.
-
-**Step 2 — add the trusted publisher** on npmjs.com at
-`https://www.npmjs.com/package/dsh-simple-usage-info/access`:
-
-| Field | Value |
-|---|---|
-| Publisher | GitHub Actions |
-| Organization or user | `MarJose123` — the **GitHub** owner, *not* the npm username |
-| Repository | `dsh-simple-usage-info` |
-| Workflow filename | `ci.yml` — the filename only, with the extension, not the full path |
-| Environment name | *(leave blank — the job declares no environment)* |
-| Allowed actions | **tick "Allow npm publish"** |
-
-That last row is the trap: `npm stage publish` is always permitted, but direct `npm publish` is a
-separate opt-in and is **off by default**. Without it the publish is rejected even though the
-workflow is otherwise correct.
-
-**Step 3 — release via CI.** Bump the version, then cut a GitHub Release:
+**release via CI.** Bump the version, then cut a GitHub Release:
 
 ```sh
 npm version 0.1.1 --no-git-tag-version
@@ -245,24 +197,6 @@ git commit -am "Release 0.1.1" && git push
 gh release create v0.1.1 --generate-notes
 ```
 
-The publish job runs, and from here on every release goes through OIDC. Revoke the bootstrap token
-if you created one — nothing needs it any more.
-
-> If you would rather `0.1.0` be the CI-published version, bootstrap a throwaway `0.0.1` instead,
-> then set the version back to `0.1.0` and release that. The bootstrap version is scaffolding, so it
-> never carries provenance.
-
-### Reading a failed publish
-
-The two failure modes look similar but have different causes, and npm's error code tells them apart:
-
-| Error | Meaning |
-|---|---|
-| `E404` on `PUT` | The package does not exist yet — do the bootstrap above |
-| `ENEEDAUTH` | The package exists but the trusted publisher does not match: check the GitHub owner, repository, and workflow filename are **exact and case-sensitive**, and that the job has `id-token: write` |
-
-The workflow checks for the first case before publishing and fails with the remedy instead of a bare
-404.
 
 ## License
 
