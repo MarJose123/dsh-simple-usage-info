@@ -109,7 +109,81 @@ const balancePayload = {
   }
 }
 const bothWallets = { status: 'ready', payload: balancePayload }
-check('summarize prefers the funded wallet', exports_.summarize(bothWallets) === 'DeepSeek ¥25.38', exports_.summarize(bothWallets))
+check('summarize shows CNY when USD is zero', exports_.summarize(bothWallets) === 'DeepSeek ¥25.38', exports_.summarize(bothWallets))
+check(
+  'summarize shows CNY when USD is empty',
+  exports_.summarize({
+    status: 'ready',
+    payload: {
+      ok: true,
+      balance: {
+        is_available: true,
+        balance_infos: [{ currency: 'CNY', total_balance: '19.41' }]
+      }
+    }
+  }) === 'DeepSeek ¥19.41'
+)
+check(
+  'summarize shows USD when CNY is empty',
+  exports_.summarize({
+    status: 'ready',
+    payload: {
+      ok: true,
+      balance: {
+        is_available: true,
+        balance_infos: [{ currency: 'USD', total_balance: '10.00' }]
+      }
+    }
+  }) === 'DeepSeek $10.00'
+)
+check(
+  'summarize shows USD when CNY is zero',
+  exports_.summarize({
+    status: 'ready',
+    payload: {
+      ok: true,
+      balance: {
+        is_available: true,
+        balance_infos: [
+          { currency: 'CNY', total_balance: '0.00' },
+          { currency: 'USD', total_balance: '10.00' }
+        ]
+      }
+    }
+  }) === 'DeepSeek $10.00'
+)
+check(
+  'summarize formats both funded CNY and USD totals',
+  exports_.summarize({
+    status: 'ready',
+    payload: {
+      ok: true,
+      balance: {
+        is_available: true,
+        balance_infos: [
+          { currency: 'CNY', total_balance: '19.41' },
+          { currency: 'USD', total_balance: '10.00' }
+        ]
+      }
+    }
+  }) === 'DeepSeek ¥19.41 + $10.00'
+)
+check(
+  'summarize orders CNY before USD regardless of payload order when both funded',
+  exports_.summarize({
+    status: 'ready',
+    payload: {
+      ok: true,
+      balance: {
+        is_available: true,
+        balance_infos: [
+          { currency: 'USD', total_balance: '10.00' },
+          { currency: 'CNY', total_balance: '19.41' }
+        ]
+      }
+    }
+  }) === 'DeepSeek ¥19.41 + $10.00'
+)
 check('summarize handles the loading state', exports_.summarize({ status: 'loading' }) === 'DeepSeek …')
 check('summarize handles the error state', exports_.summarize({ status: 'error' }) === 'DeepSeek unavailable')
 check(
