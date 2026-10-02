@@ -4,8 +4,8 @@
 [![license](https://img.shields.io/npm/l/dsh-simple-usage-info.svg)](LICENSE)
 
 A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that puts your
-**DeepSeek API balance** and the **current billing window** in the composer dock — the ambient row
-directly below the message input, after the context meter.
+**DeepSeek API balance**, the **current billing window**, and the **session estimated cost** in the
+composer dock — the ambient row directly below the message input, after the context meter.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -26,6 +26,10 @@ Applies because          Chinese public holiday
 Peak hours today (Asia/Manila)   09:00–12:00, 14:00–18:00
 Next switch              peak in 6d 13h (Thu 09:00)
 ─────────────────────────────────────────────────────────────
+Estimated cost
+USD                                 $0.012
+CNY                                 ¥0.08
+─────────────────────────────────────────────────────────────
 CNY
 Total                                 ¥22.48
 Granted                                ¥0.00
@@ -44,6 +48,12 @@ half price, peak is 01:00–04:00 and 06:00–10:00 UTC, Monday–Friday, exclud
 holidays. The holiday list is fetched from
 [NateScarlet/holiday-cn](https://github.com/NateScarlet/holiday-cn), which scrapes the State Council
 announcements daily, so it keeps itself current.
+
+The **Estimated cost** section shows the running session cost in both USD and CNY, calculated from
+the token usage (cached input, uncached input, and output) using the published peak and off-peak
+rates of the model selected for the session. Supported models are `deepseek-flash`
+(DeepSeek-V41-Flash) and `deepseek-v4-pro` (DeepSeek-V4-Pro-0813). The section appears only when
+the session has non-zero token usage.
 
 ## Requirements
 

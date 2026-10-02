@@ -227,7 +227,7 @@ check('no pricing means no pill', exports_.priceBadge(undefined) === null)
 check('a pricing block without a window means no pill', exports_.priceBadge({}) === null)
 
 /** The popover model: label/value rows grouped the way the context meter is. */
-const model = exports_.panelModel(balancePayload, offPeak, anchor)
+const model = exports_.panelModel(balancePayload, offPeak, anchor, undefined)
 check('the popover headline is the funded balance', model.headline === '¥25.38', model.headline)
 check('the popover opens with the billing group', model.groups[0]?.title === 'Billing window', JSON.stringify(model.groups.map((group) => group.title)))
 check(
@@ -261,7 +261,7 @@ const usdRows = Object.fromEntries(model.groups[2].rows.map((row) => [row.label,
 check('the zero wallet still reports its own figures', usdRows.Total === '$0.00' && usdRows.Granted === '$0.00', JSON.stringify(usdRows))
 check('the zero wallet has no topped-up row either', usdRows['Topped up'] === undefined, JSON.stringify(usdRows))
 
-const peakModel = exports_.panelModel(balancePayload, peak, anchor)
+const peakModel = exports_.panelModel(balancePayload, peak, anchor, undefined)
 const peakRows = Object.fromEntries(peakModel.groups[0].rows.map((row) => [row.label, row.value]))
 check('peak model says Peak', peakRows.Billing === 'Peak', JSON.stringify(peakRows))
 check('peak model has no discount row either', peakRows.Discount === undefined, JSON.stringify(peakRows))
@@ -269,20 +269,107 @@ check('peak model has no discount row either', peakRows.Discount === undefined, 
 const failed = exports_.panelModel(
   { ok: false, error: { code: 'missing-credential', message: 'no key' }, fetchedAt: anchor },
   offPeak,
-  anchor
+  anchor,
+  undefined
 )
 check('a failed read keeps the billing group', failed.groups[0]?.title === 'Billing window')
 check('a failed read surfaces the error', failed.error === 'no key', String(failed.error))
 check('a failed read has no wallet groups', failed.groups.length === 1, String(failed.groups.length))
 check('a failed read still shows a headline placeholder', failed.headline === '—', failed.headline)
 
-const uncovered = exports_.panelModel(balancePayload, { ...offPeak, holidayCovered: false, holidayYear: 2027 }, anchor)
+const uncovered = exports_.panelModel(balancePayload, { ...offPeak, holidayCovered: false, holidayYear: 2027 }, anchor, undefined)
 const uncoveredRows = Object.fromEntries(uncovered.groups[0].rows.map((row) => [row.label, row.value]))
 check('an uncovered holiday year is called out', uncoveredRows.Holidays === 'not bundled for 2027', JSON.stringify(uncoveredRows))
 
-const notRead = exports_.panelModel({}, offPeak, anchor)
+const notRead = exports_.panelModel({}, offPeak, anchor, undefined)
 check('an unread balance says so', notRead.footer === 'Not read yet', notRead.footer)
 check('a read balance stamps the time', /^Read at \d{2}:\d{2}$/.test(model.footer), model.footer)
+
+/** Estimated cost calculation — flat TokenUsageProjection object. */
+const sampleUsage = {
+  uncachedInputTokens: 10000,
+  outputTokens: 5000,
+  cacheReadTokens: 20000,
+  cacheWriteTokens: 1000
+}
+
+/** Peak rates for deepseek-flash: cache hit $0.006/M, cache miss $0.30/M, output $1.20/M */
+const peakCost = exports_.estimateCost(sampleUsage, true)
+check('peak cost returns both currencies', peakCost !== null && typeof peakCost.usd === 'number' && typeof peakCost.cny === 'number')
+// Peak Flash: 20000*0.006 + 10000*0.30 + 5000*1.20 = 120 + 3000 + 6000 = 9120 / 1M = $0.00912
+check('peak Flash USD cost is correct', Math.abs(peakCost.usd - 0.00912) < 0.00001, String(peakCost.usd))
+// Peak Flash CNY: 20000*0.04 + 10000*2 + 5000*8 = 800 + 20000 + 40000 = 60800 / 1M = ¥0.0608
+check('peak Flash CNY cost is correct', Math.abs(peakCost.cny - 0.0608) < 0.00001, String(peakCost.cny))
+
+/** Off-peak uses explicit published rates: cache hit $0.003/M, cache miss $0.15/M, output $0.60/M */
+const offPeakCost = exports_.estimateCost(sampleUsage, false)
+// Off-peak Flash USD: 20000*0.003 + 10000*0.15 + 5000*0.60 = 60 + 1500 + 3000 = 4560 / 1M = $0.00456
+check('off-peak Flash USD cost is correct', Math.abs(offPeakCost.usd - 0.00456) < 0.00001, String(offPeakCost.usd))
+// Off-peak Flash CNY: 20000*0.02 + 10000*1 + 5000*4 = 400 + 10000 + 20000 = 30400 / 1M = ¥0.0304
+check('off-peak Flash CNY cost is correct', Math.abs(offPeakCost.cny - 0.0304) < 0.00001, String(offPeakCost.cny))
+
+/** DeepSeek-V4-Pro peak rates: cache hit $0.044/M, cache miss $1.32/M, output $3.96/M */
+const v4ProPeakCost = exports_.estimateCost(sampleUsage, true, 'deepseek-v4-pro')
+check('V4-Pro peak returns both currencies', v4ProPeakCost !== null && typeof v4ProPeakCost.usd === 'number' && typeof v4ProPeakCost.cny === 'number')
+// Peak V4-Pro USD: 20000*0.044 + 10000*1.32 + 5000*3.96 = 880 + 13200 + 19800 = 33880 / 1M = $0.03388
+check('V4-Pro peak USD cost is correct', Math.abs(v4ProPeakCost.usd - 0.03388) < 0.00001, String(v4ProPeakCost.usd))
+// Peak V4-Pro CNY: 20000*0.30 + 10000*9.00 + 5000*27.0 = 6000 + 90000 + 135000 = 231000 / 1M = ¥0.231
+check('V4-Pro peak CNY cost is correct', Math.abs(v4ProPeakCost.cny - 0.231) < 0.00001, String(v4ProPeakCost.cny))
+
+/** DeepSeek-V4-Pro off-peak uses explicit published rates: cache hit $0.022/M, cache miss $0.66/M, output $1.98/M */
+const v4ProOffPeakCost = exports_.estimateCost(sampleUsage, false, 'deepseek-v4-pro')
+// Off-peak V4-Pro USD: 20000*0.022 + 10000*0.66 + 5000*1.98 = 440 + 6600 + 9900 = 16940 / 1M = $0.01694
+check('V4-Pro off-peak USD cost is correct', Math.abs(v4ProOffPeakCost.usd - 0.01694) < 0.00001, String(v4ProOffPeakCost.usd))
+// Off-peak V4-Pro CNY: 20000*0.15 + 10000*4.5 + 5000*13.5 = 3000 + 45000 + 67500 = 115500 / 1M = ¥0.1155
+check('V4-Pro off-peak CNY cost is correct', Math.abs(v4ProOffPeakCost.cny - 0.1155) < 0.00001, String(v4ProOffPeakCost.cny))
+
+/** Explicit deepseek-flash model key matches default */
+const flashCost = exports_.estimateCost(sampleUsage, true, 'deepseek-flash')
+check('explicit Flash model matches default', Math.abs(flashCost.usd - peakCost.usd) < 0.00001 && Math.abs(flashCost.cny - peakCost.cny) < 0.00001)
+
+/** Unknown model falls back to default Flash rates */
+const unknownModelCost = exports_.estimateCost(sampleUsage, true, 'unknown-model')
+check('unknown model falls back to Flash', Math.abs(unknownModelCost.usd - peakCost.usd) < 0.00001 && Math.abs(unknownModelCost.cny - peakCost.cny) < 0.00001)
+
+/** getModelRates returns the correct rates table for peak and off-peak */
+const flashPeakRates = exports_.getModelRates('deepseek-flash', true)
+check('Flash peak rates cache hit is $0.006', flashPeakRates.usd.inputCacheHit === 0.006, String(flashPeakRates.usd.inputCacheHit))
+const flashOffPeakRates = exports_.getModelRates('deepseek-flash', false)
+check('Flash off-peak rates cache hit is $0.003', flashOffPeakRates.usd.inputCacheHit === 0.003, String(flashOffPeakRates.usd.inputCacheHit))
+const v4ProPeakRates = exports_.getModelRates('deepseek-v4-pro', true)
+check('V4-Pro peak rates cache hit is $0.044', v4ProPeakRates.usd.inputCacheHit === 0.044, String(v4ProPeakRates.usd.inputCacheHit))
+const v4ProOffPeakRates = exports_.getModelRates('deepseek-v4-pro', false)
+check('V4-Pro off-peak rates cache hit is $0.022', v4ProOffPeakRates.usd.inputCacheHit === 0.022, String(v4ProOffPeakRates.usd.inputCacheHit))
+const fallbackPeakRates = exports_.getModelRates('nonexistent', true)
+check('unknown model falls back to Flash peak rates', fallbackPeakRates.usd.inputCacheHit === 0.006, String(fallbackPeakRates.usd.inputCacheHit))
+
+/** Zero usage returns null */
+check('zero usage returns null', exports_.estimateCost({ uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, true) === null)
+check('missing usage returns null', exports_.estimateCost(undefined, true) === null)
+
+/** Formatting */
+check('formatUsd shows dollars', exports_.formatUsd(1.50) === '$1.50', exports_.formatUsd(1.50))
+check('formatUsd shows small amounts', exports_.formatUsd(0.012) === '$0.012', exports_.formatUsd(0.012))
+check('formatCny shows yen', exports_.formatCny(2.50) === '¥2.50', exports_.formatCny(2.50))
+check('formatCny shows small amounts', exports_.formatCny(0.08) === '¥0.08', exports_.formatCny(0.08))
+
+/** Panel model with token usage shows estimated cost group */
+const modelWithCost = exports_.panelModel(balancePayload, offPeak, anchor, sampleUsage)
+const costGroup = modelWithCost.groups.find((group) => group.title === 'Estimated cost')
+check('panel with usage shows estimated cost group', costGroup !== undefined)
+check('cost group has USD row', costGroup?.rows?.find((row) => row.label === 'USD') !== undefined)
+check('cost group has CNY row', costGroup?.rows?.find((row) => row.label === 'CNY') !== undefined)
+
+/** Panel model uses the model parameter to select pricing rates */
+const panelFlash = exports_.panelModel(balancePayload, { window: 'peak' }, anchor, sampleUsage, 'deepseek-flash')
+const panelV4Pro = exports_.panelModel(balancePayload, { window: 'peak' }, anchor, sampleUsage, 'deepseek-v4-pro')
+const flashCostGroup = panelFlash.groups.find((group) => group.title === 'Estimated cost')
+const v4ProCostGroup = panelV4Pro.groups.find((group) => group.title === 'Estimated cost')
+check('panel model parameter selects Flash rates', flashCostGroup?.rows?.find((row) => row.label === 'USD')?.value === '$0.0091', flashCostGroup?.rows?.find((row) => row.label === 'USD')?.value)
+check('panel model parameter selects V4-Pro rates', v4ProCostGroup?.rows?.find((row) => row.label === 'USD')?.value === '$0.0339', v4ProCostGroup?.rows?.find((row) => row.label === 'USD')?.value)
+const flashUsdValue = flashCostGroup?.rows?.find((row) => row.label === 'USD')?.value?.replace('$', '') ?? '0'
+const v4ProUsdValue = v4ProCostGroup?.rows?.find((row) => row.label === 'USD')?.value?.replace('$', '') ?? '0'
+check('V4-Pro cost is higher than Flash cost', parseFloat(v4ProUsdValue) > parseFloat(flashUsdValue))
 
 /**
  * Regression guard. `useAnchoredPosition` returns ONLY `{left, top}`, and that
