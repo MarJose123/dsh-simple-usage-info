@@ -1,19 +1,17 @@
-# Tests on every push and pull request; publishes to npm on a GitHub Release
-# (or from the Actions tab). See the README's "Publishing" section for the one
-# time Trusted Publisher setup on npmjs.com.
+# Tests on every push and pull request; publishes to npm when a version tag is
+# pushed from main. Publishing uses npm Trusted Publishing via GitHub OIDC.
 #
-# The test job installs with bun (the repo's dev package manager, via the
-# committed bun.lock). The publish job is deliberately npm-only and installs
-# nothing: the published files are committed sources, so `npm publish` just packs
-# them, and the test job has already gated the release.
+# CI uses npm for compatibility. The publish job also uses npm for version
+# alignment, packing, and publishing.
 name: CI
 
 on:
   push:
     branches: [main]
+    tags:
+      - "v*"
+      - "[0-9]*"
   pull_request:
-  release:
-    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -21,75 +19,111 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install dev dependencies
-        run: bun install --frozen-lockfile
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
       - name: Preflight
-        run: bun run preflight
+        run: npm run preflight
 
   publish:
     needs: test
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       # The OIDC token npm exchanges for a short-lived publish credential.
-      # Without this, npm falls back to looking for a token and fails.
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm >= 11.5.1, and Node 22 ships npm 10.x.
-      # No NODE_AUTH_TOKEN anywhere: npm authenticates from the OIDC token.
+          cache: npm
+
+      # Trusted publishing needs npm >= 11.5.1.
+      # No NODE_AUTH_TOKEN is needed: npm authenticates through GitHub OIDC.
       - name: Ensure npm supports trusted publishing
         run: |
           npm install -g npm@latest
           npm --version
-      # A trusted publisher attaches to an existing package page — npm's own
-      # setup path is "Packages -> YOUR_PACKAGE -> Settings -> Trusted
-      # publishing" — so npm cannot create a brand-new package from an OIDC
-      # token and answers E404 on the PUT. Fail here with the remedy instead.
-      # (A *mismatched* trusted publisher gives ENEEDAUTH, not 404, so the two
-      # failure modes are distinguishable.)
+
+      - name: Verify tag belongs to main
+        run: |
+          git fetch origin main --tags
+
+          tag_ref="${GITHUB_REF_NAME}"
+          tag_commit="$(git rev-list -n 1 "$tag_ref")"
+
+          if git merge-base --is-ancestor "$tag_commit" origin/main; then
+            echo "Tag '$tag_ref' belongs to main"
+          else
+            echo "::error::Tag '$tag_ref' does not point to a commit contained in main"
+            exit 1
+          fi
+
+      - name: Align package.json version with tag
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./package.json').version")"
+
+          echo "Tag version: $tag_version"
+          echo "package.json version: $package_version"
+
+          if [ "$tag_version" != "$package_version" ]; then
+            npm version "$tag_version" --no-git-tag-version --allow-same-version
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            git add package.json package-lock.json npm-shrinkwrap.json 2>/dev/null || true
+
+            if ! git diff --cached --quiet; then
+              git commit -m "chore: align package version with ${GITHUB_REF_NAME}"
+              git push origin HEAD:main
+            else
+              echo "No version changes to commit"
+            fi
+          else
+            echo "package.json already matches tag"
+          fi
+
+      # A trusted publisher attaches to an existing package page. It cannot create
+      # the very first publish of a package.
       - name: Check the package exists on the registry
         run: |
           name="$(node -p "require('./package.json').name")"
           if npm view "$name" version >/dev/null 2>&1; then
             echo "$name is on the registry"
           else
-            echo "::error::$name has never been published, and trusted publishing cannot create a new package. Publish the first version manually (npm login && npm publish --access public), then add the trusted publisher on the package page. See the README's Publishing section."
+            echo "::error::$name has never been published, and trusted publishing cannot create a new package. Publish the first version manually, then configure trusted publishing on npm."
             exit 1
           fi
-      # npm validates that repository.url matches the repository the workflow
-      # runs in, and the mismatch surfaces as a confusing publish failure.
+
       - name: Check repository.url matches this repository
         run: |
           declared="$(node -p "require('./package.json').repository.url" | sed -e 's|^git+||' -e 's|\.git$||')"
           actual="https://github.com/${GITHUB_REPOSITORY}"
+
           if [ "$declared" != "$actual" ]; then
             echo "::error::package.json repository.url is '$declared' but this workflow runs in '$actual'"
             exit 1
           fi
+
           echo "repository.url matches $actual"
-      - name: Check the release tag matches package.json
-        if: github.event_name == 'release'
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          version="$(node -p "require('./package.json').version")"
-          if [ "$tag" != "$version" ]; then
-            echo "::error::release tag '$tag' does not match package.json version '$version'"
-            exit 1
-          fi
-          echo "publishing $version"
+
       - name: Inspect the tarball
         run: npm pack --dry-run
+
       - name: Publish
         run: npm publish --access public --provenance
