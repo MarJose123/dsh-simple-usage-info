@@ -1,6 +1,6 @@
 {
   "name": "dsh-simple-usage-info",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DeepSeek Harness plugin: your DeepSeek API balance and the current peak/off-peak billing window, below the message input.",
   "keywords": [
     "dsh",
