@@ -386,7 +386,7 @@ check('the stylesheet styles the popover rows', css.includes('.dsu-row{') && css
 check('the stylesheet styles the dock bar', css.includes('.dsu-bar{') && css.includes('.dsu-bar:hover{'))
 check('the stylesheet styles the pill', css.includes('.dsu-pill{') && css.includes('.dsu-pill-off{') && css.includes('.dsu-pill-peak{'))
 check('the off-peak pill is green', /\.dsu-pill-off\{color:var\(--dsw-alias-state-success-primary\)\}/.test(css), css.match(/\.dsu-pill-off\{[^}]*\}/)?.[0])
-check('the peak pill is red', /\.dsu-pill-peak\{color:var\(--dsw-alias-state-error-primary\)\}/.test(css), css.match(/\.dsu-pill-peak\{[^}]*\}/)?.[0])
+check('the peak pill is orange', /\.dsu-pill-peak\{color:var\(--dsw-alias-state-warning-primary,\s*#e67e22\)\}/.test(css), css.match(/\.dsu-pill-peak\{[^}]*\}/)?.[0])
 
 const panelHtml = renderToStaticMarkup(exports_.panelElement(model, { left: 10, top: 20 }, { current: null }, () => {}))
 check('the panel wears its class', panelHtml.includes('class="dsu-panel"'), panelHtml.slice(0, 160))
