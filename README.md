@@ -7,39 +7,11 @@ A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin tha
 **DeepSeek API balance**, the **current billing window**, and the **session estimated cost** in the
 composer dock — the ambient row directly below the message input, after the context meter.
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  Ask anything…                                           │
-│                                            [ model ]  ▸  │
-└──────────────────────────────────────────────────────────┘
-                    ◐ 12%   ● DeepSeek ¥22.48  (Off-peak)
-```
+![](https://raw.githubusercontent.com/MarJose123/dsh-simple-usage-info/e880524e26497664d103f39a2543e0a02c4c51ab/showcase/img.png)
 
 Click the bar for the full breakdown:
 
-```
-● DeepSeek account                                    ¥22.48
-─────────────────────────────────────────────────────────────
-Billing window
-Billing                              Off-peak
-Applies because          Chinese public holiday
-Peak hours today (Asia/Manila)   09:00–12:00, 14:00–18:00
-Next switch              peak in 6d 13h (Thu 09:00)
-─────────────────────────────────────────────────────────────
-Estimated cost
-USD                                 $0.012
-CNY                                 ¥0.08
-─────────────────────────────────────────────────────────────
-CNY
-Total                                 ¥22.48
-Granted                                ¥0.00
-─────────────────────────────────────────────────────────────
-USD
-Total                                  $0.00
-Granted                                $0.00
-─────────────────────────────────────────────────────────────
-Read at 19:04                                     (⟳)
-```
+![](https://raw.githubusercontent.com/MarJose123/dsh-simple-usage-info/e880524e26497664d103f39a2543e0a02c4c51ab/showcase/img_1.png)
 
 The pill reads **Off-peak** (green) or **Peak** (red). The balance is read with the same
 `DEEPSEEK_API_KEY` credential the `deepseek-official` model route resolves — no extra setup. The
