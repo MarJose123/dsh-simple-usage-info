@@ -252,14 +252,16 @@ check('billing row counts down to the switch', /^peak in /.test(String(billingRo
 
 const cnyRows = Object.fromEntries(model.groups[1].rows.map((row) => [row.label, row.value]))
 check(
-  'wallet rows carry total and granted',
-  cnyRows.Total === '¥25.38' && cnyRows.Granted === '¥1.00',
+  'wallet rows carry total, granted, and topped-up',
+  cnyRows.Total === '¥25.38' && cnyRows.Granted === '¥1.00' && cnyRows['Topped up'] === '¥24.38',
   JSON.stringify(cnyRows)
 )
-check('the topped-up row is gone', cnyRows['Topped up'] === undefined, JSON.stringify(cnyRows))
 const usdRows = Object.fromEntries(model.groups[2].rows.map((row) => [row.label, row.value]))
-check('the zero wallet still reports its own figures', usdRows.Total === '$0.00' && usdRows.Granted === '$0.00', JSON.stringify(usdRows))
-check('the zero wallet has no topped-up row either', usdRows['Topped up'] === undefined, JSON.stringify(usdRows))
+check(
+  'the zero wallet reports total, granted, and topped-up',
+  usdRows.Total === '$0.00' && usdRows.Granted === '$0.00' && usdRows['Topped up'] === '$0.00',
+  JSON.stringify(usdRows)
+)
 
 const peakModel = exports_.panelModel(balancePayload, peak, anchor, undefined)
 const peakRows = Object.fromEntries(peakModel.groups[0].rows.map((row) => [row.label, row.value]))
