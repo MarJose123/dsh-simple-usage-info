@@ -47,12 +47,7 @@ check('factory is a function', typeof registration?.factory === 'function')
  */
 const seed = {
   react: React,
-  'react-dom': ReactDOM,
-  '@deepseek-ai/dsh-client-ui-primitives': {
-    useAnchoredPosition: () => null,
-    useDismissOnOutsidePointer: () => {},
-    Tooltip: () => null
-  }
+  'react-dom': ReactDOM
 }
 const requested = []
 const exports_ = registration.factory((name) => {
@@ -63,7 +58,7 @@ const exports_ = registration.factory((name) => {
 
 check(
   'only platform-seed modules are required',
-  JSON.stringify(requested) === '["react","react-dom","@deepseek-ai/dsh-client-ui-primitives"]',
+  JSON.stringify(requested) === '["react","react-dom"]',
   JSON.stringify(requested)
 )
 check('exports.inject is the Cordis service list', JSON.stringify(exports_.inject) === '["slots"]', JSON.stringify(exports_.inject))
@@ -476,10 +471,9 @@ check(
   html.includes('aria-expanded="false"') && html.includes('aria-haspopup="dialog"'),
   html
 )
-// The context percentage is hardcoded after the dock slot, so flex order is the
-// only thing that can place this bar last in the row — and it lives in the class.
+// The bar has order 0 so it appears first on the left side of the dock.
 check('the bar wears its class', html.includes('class="dsu-bar"'), html)
-check('the bar class carries the flex order that clears the context meter', /\.dsu-bar\{order:1;/.test(exports_.PANEL_CSS), exports_.PANEL_CSS.slice(0, 120))
+check('the bar class has no margin-left:auto', !/\.dsu-bar\{margin-left:auto;/.test(exports_.PANEL_CSS), exports_.PANEL_CSS.slice(0, 120))
 check('the popover is not in the tree while closed', !html.includes('dsu-panel'), html)
 
 console.log(failures === 0 ? '\nclient preflight: PASS' : `\nclient preflight: ${failures} FAILURE(S)`)
